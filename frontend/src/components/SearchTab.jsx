@@ -35,6 +35,8 @@ export default function SearchTab({ onDownloadStarted }) {
     }
   }
 
+  const hasOwnedResult = results.some((r) => r.alreadyOwned)
+
   return (
     <section className="glass-panel">
       <h2 className="section-title">Pretraga mreže</h2>
@@ -65,9 +67,9 @@ export default function SearchTab({ onDownloadStarted }) {
                 <div className="file-meta">
                   <span>{formatBytes(r.size)}</span>
                   <span>
-                    {r.peerCount} peer{r.peerCount === 1 ? '' : '-a'}
+                    {r.peerCount} {r.peerCount === 1 ? 'izvor' : 'izvora'}
                   </span>
-                  {r.alreadyOwned && <span className="badge owned">already owned</span>}
+                  {r.alreadyOwned && <span className="badge owned">već u biblioteci</span>}
                 </div>
               </div>
               <button
@@ -75,10 +77,23 @@ export default function SearchTab({ onDownloadStarted }) {
                 disabled={r.alreadyOwned || startingHash === r.fileHash}
                 onClick={() => handleDownload(r)}
               >
-                {r.alreadyOwned ? 'Owned' : startingHash === r.fileHash ? 'Pokrećem...' : 'Download'}
+                {r.alreadyOwned ? 'U biblioteci' : startingHash === r.fileHash ? 'Pokrećem...' : 'Preuzmi'}
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {hasOwnedResult && (
+        <div className="hint-banner">
+          <span className="hint-banner__icon">ℹ️</span>
+          <span>
+            Fajl obeležen sa <strong>„već u biblioteci"</strong> znači da ga <em>ovaj</em> peer (na kom
+            gledaš GUI) već ima — bilo zato što ga deli iz svog `shared` foldera, bilo zato što ga je
+            ranije preuzeo. To je očekivano ako testiraš na jednom peer-u. Da vidiš pravo preuzimanje
+            preko mreže, pokreni <strong>drugi</strong> peer (drugi port) koji fajl <em>nema</em>, i otvori
+            GUI za njega u novom tabu — npr. <code>?port=7002</code>. Detaljno uputstvo: DEMO_SCRIPT.md.
+          </span>
         </div>
       )}
     </section>

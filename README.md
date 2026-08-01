@@ -2,7 +2,8 @@
 
 Hibridna P2P aplikacija: centralni **Tracker** (samo metapodaci) + direktan **peer-to-peer** transfer
 fajlova preko TCP soketa. Detaljan dizajn i obrazloženja u [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md),
-zahtevi u [prd.md](prd.md).
+zahtevi u [prd.md](prd.md). Spremaš prezentaciju? Prati [DEMO_SCRIPT.md](DEMO_SCRIPT.md) — korak-po-korak
+scenario sa svim DoD kriterijumima i verovatnim pitanjima komisije.
 
 Nema Spring/Spring Boot, nema Maven/Gradle — Tracker i Peer Node su čist Java 17
 (`com.sun.net.httpserver.HttpServer`, `java.net.http.HttpClient`, `java.net.Socket`).

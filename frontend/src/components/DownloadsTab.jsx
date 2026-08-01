@@ -3,10 +3,10 @@ import { usePolling } from '../hooks/usePolling'
 import { formatBytes, formatSpeed } from '../utils'
 
 const STATUS_LABEL = {
-  IN_PROGRESS: 'In progress',
-  VERIFYING: 'Verifying',
-  COMPLETED: 'Completed',
-  FAILED: 'Failed',
+  IN_PROGRESS: 'U toku',
+  VERIFYING: 'Verifikacija',
+  COMPLETED: 'Završeno',
+  FAILED: 'Neuspešno',
 }
 
 export default function DownloadsTab() {
