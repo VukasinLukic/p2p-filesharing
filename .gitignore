@@ -1,0 +1,28 @@
+# Java build output
+tracker/out/
+tracker/out-test/
+peer-node/out/
+peer-node/out-test/
+*.class
+
+# Peer runtime data (per-instance, created at runtime)
+peer-node/shared*/
+peer-node/downloads*/
+**/*.part
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE / OS
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.log.err
+sources.txt
