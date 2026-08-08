@@ -33,11 +33,14 @@ public final class PeerMain {
         System.out.println("TCP port:     " + config.tcpPort);
         System.out.println("HTTP port:    " + config.httpPort);
         System.out.println("Tracker:      " + config.trackerUrl);
+        System.out.println("[Startup] scanning shared folder before registering with tracker");
 
         LibraryService library = new LibraryService();
         SharedFolderScanner scanner = new SharedFolderScanner();
         library.replaceAll(scanner.scan(config.sharedDir));
         System.out.println("[Scan] " + library.allFiles().size() + " file(s) in shared dir");
+        library.allFiles().forEach(file -> System.out.println("[Scan]   " + file.fileName()
+                + " | " + file.size() + " bytes | " + file.fileHash()));
 
         FileServer fileServer = new FileServer(config.tcpPort, library);
         Thread fileServerThread = new Thread(fileServer, "file-server");
@@ -63,6 +66,8 @@ public final class PeerMain {
         httpServer.setExecutor(httpExecutor);
         httpServer.start();
         System.out.println("[HTTP] local REST API on http://localhost:" + config.httpPort);
+        System.out.println("[Ready] Open http://localhost:8888/?port=" + config.httpPort
+                + " (this peer's local API is port " + config.httpPort + ")");
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("Peer shutting down...");

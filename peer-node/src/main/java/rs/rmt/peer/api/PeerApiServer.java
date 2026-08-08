@@ -34,6 +34,7 @@ public final class PeerApiServer {
 
         router.add("GET", "/api/search", (exchange, params) -> {
             String q = HttpUtil.queryParams(exchange).getOrDefault("q", "");
+            System.out.println("[API Search] query='" + q + "' -> tracker " + config.trackerUrl);
             List<FileSearchResult> results;
             try {
                 results = trackerClient.search(q);
@@ -41,6 +42,7 @@ public final class PeerApiServer {
                 HttpUtil.sendJson(exchange, 502, Json.obj("error", "Tracker unreachable: " + e.getMessage()));
                 return;
             }
+            System.out.println("[API Search] tracker returned " + results.size() + " result(s)");
             List<Map<String, Object>> out = new ArrayList<>();
             for (FileSearchResult r : results) {
                 out.add(Json.obj(
@@ -58,6 +60,7 @@ public final class PeerApiServer {
             String fileHash = Json.getString(body, "fileHash");
             String fileName = Json.getString(body, "fileName");
             long size = Json.getLong(body, "size", 0);
+            System.out.println("[API Download] requested file='" + fileName + "' hash=" + fileHash + " size=" + size);
 
             if (fileHash == null || fileHash.isBlank() || fileName == null || fileName.isBlank()) {
                 HttpUtil.sendJson(exchange, 400, Json.obj("error", "'fileHash' and 'fileName' are required"));
@@ -76,6 +79,7 @@ public final class PeerApiServer {
                 return;
             }
             candidates.removeIf(p -> p.peerId().equals(state.peerId));
+            System.out.println("[API Download] tracker gave " + candidates.size() + " remote candidate(s): " + candidates);
 
             DownloadManager.DownloadTask task = downloadManager.create(fileHash, fileName, size);
             downloadService.startAsync(task, candidates);
@@ -125,6 +129,7 @@ public final class PeerApiServer {
         // "Refresh Connection" in the GUI's network settings: re-register + re-announce right now
         // instead of waiting up to one heartbeat interval for the peer to notice on its own.
         router.add("POST", "/api/tracker/reconnect", (exchange, params) -> {
+            System.out.println("[API Reconnect] manual reconnect requested from GUI");
             boolean ok = trackerSession.forceReconnect();
             Map<String, Object> payload = statusPayload(config, state);
             payload.put("reconnected", ok);

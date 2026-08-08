@@ -58,6 +58,8 @@ public final class DownloadService {
     }
 
     private void runDownload(DownloadManager.DownloadTask task, List<PeerRef> candidatePeers) {
+        System.out.println("[Download] starting '" + task.fileName + "' from " + candidatePeers.size()
+                + " candidate(s): " + candidatePeers);
         if (candidatePeers.isEmpty()) {
             task.status = DownloadManager.Status.FAILED;
             task.errorMessage = "No peers available for this file";
@@ -75,6 +77,8 @@ public final class DownloadService {
         String lastError = null;
         for (PeerRef peer : candidatePeers) {
             try {
+                System.out.println("[Download] connecting to " + peer.host() + ":" + peer.port()
+                        + " for " + task.fileName);
                 attemptSingleSourceDownload(task, peer);
                 if (task.status == DownloadManager.Status.COMPLETED) {
                     task.errorMessage = null; // clear any transient failure text left over from earlier attempts
@@ -109,7 +113,9 @@ public final class DownloadService {
         Path partPath = downloadDir.resolve(safeName + ".part");
 
         try (Socket socket = new Socket()) {
+            System.out.println("[Download] TCP connect -> " + peer.host() + ":" + peer.port());
             socket.connect(new InetSocketAddress(peer.host(), peer.port()), 5000);
+            System.out.println("[Download] TCP connected -> " + peer.host() + ":" + peer.port());
             // A peer that accepts the connection but then goes silent (crashed, network partition)
             // must not hang this download forever - fail fast and let the caller try the next peer.
             socket.setSoTimeout(15_000);

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { getPeerApiBase } from './settings'
 import StatusHeader from './components/StatusHeader'
 import SearchTab from './components/SearchTab'
 import DownloadsTab from './components/DownloadsTab'
@@ -12,6 +13,10 @@ const TABS = [
 
 function App() {
   const [activeTab, setActiveTab] = useState('search')
+
+  useEffect(() => {
+    console.info('[P2P GUI] started. Selected local peer API:', getPeerApiBase())
+  }, [])
 
   return (
     <>

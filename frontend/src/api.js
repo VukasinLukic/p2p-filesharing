@@ -4,15 +4,21 @@
 import { getPeerApiBase } from './settings'
 
 async function request(path, options = {}) {
+  const method = options.method ?? 'GET'
+  const url = `${getPeerApiBase()}${path}`
+  const isPoll = method === 'GET' && ['/status', '/downloads', '/library'].includes(path)
+  if (!isPoll) console.info('[P2P GUI] API request', method, url)
   let res
   try {
-    res = await fetch(`${getPeerApiBase()}${path}`, {
+    res = await fetch(url, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(8000),
       ...options,
     })
   } catch (err) {
-    throw new Error(err.name === 'TimeoutError' ? 'Peer node not responding (timeout)' : 'Peer node unreachable')
+    const message = err.name === 'TimeoutError' ? 'Peer node not responding (timeout)' : 'Peer node unreachable'
+    console.error('[P2P GUI] API failed', method, url, message, err)
+    throw new Error(message)
   }
   if (!res.ok) {
     let message = `HTTP ${res.status}`
@@ -22,8 +28,10 @@ async function request(path, options = {}) {
     } catch {
       // ignore, use default message
     }
+    console.error('[P2P GUI] API returned error', method, url, res.status, message)
     throw new Error(message)
   }
+  if (!isPoll) console.info('[P2P GUI] API response', method, url, res.status)
   return res.json()
 }
 

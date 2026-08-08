@@ -44,6 +44,7 @@ public final class FileServer implements Runnable {
         while (running) {
             try {
                 Socket socket = serverSocket.accept();
+                System.out.println("[FileServer] incoming TCP connection from " + socket.getRemoteSocketAddress());
                 uploadPool.submit(new UploadHandler(socket, library, chunkHasher));
             } catch (IOException e) {
                 if (running) e.printStackTrace();

@@ -42,6 +42,8 @@ public final class TrackerClient {
         // over loopback and the tracker cannot see an address worth giving to other machines.
         String host = advertisedHost();
         if (host != null) body.put("host", host);
+        System.out.println("[Tracker HTTP] POST register -> " + trackerUrl + " tcpPort=" + tcpPort
+                + " existingPeerId=" + existingPeerId + " advertisedHost=" + host);
 
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(trackerUrl + "/api/peers/register"))
@@ -67,6 +69,8 @@ public final class TrackerClient {
                 .POST(HttpRequest.BodyPublishers.ofString(Json.stringify(arr)))
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        System.out.println("[Tracker HTTP] POST announce peerId=" + peerId + " files=" + files.size()
+                + " -> HTTP " + resp.statusCode());
         return resp.statusCode() == 200;
     }
 
@@ -77,7 +81,9 @@ public final class TrackerClient {
                 .PUT(HttpRequest.BodyPublishers.noBody())
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
-        return resp.statusCode() == 200;
+        boolean ok = resp.statusCode() == 200;
+        if (!ok) System.err.println("[Tracker HTTP] heartbeat peerId=" + peerId + " -> HTTP " + resp.statusCode());
+        return ok;
     }
 
     @SuppressWarnings("unchecked")
@@ -89,6 +95,7 @@ public final class TrackerClient {
                 .GET()
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() != 200) throw new IOException("search failed: HTTP " + resp.statusCode());
         List<Object> raw = Json.parseArray(resp.body());
         List<FileSearchResult> results = new ArrayList<>();
         for (Object o : raw) {
@@ -107,6 +114,7 @@ public final class TrackerClient {
                 .GET()
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() != 200) throw new IOException("peers lookup failed: HTTP " + resp.statusCode());
         List<Object> raw = Json.parseArray(resp.body());
         List<PeerRef> results = new ArrayList<>();
         for (Object o : raw) {

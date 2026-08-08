@@ -14,9 +14,12 @@ export default function SearchTab({ onDownloadStarted }) {
     setLoading(true)
     setError(null)
     try {
+      console.info('[P2P GUI] search submitted:', query)
       const data = await api.search(query)
+      console.info('[P2P GUI] search completed:', data.length, 'result(s)')
       setResults(data)
     } catch (err) {
+      console.error('[P2P GUI] search failed:', err.message)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -26,9 +29,12 @@ export default function SearchTab({ onDownloadStarted }) {
   async function handleDownload(result) {
     setStartingHash(result.fileHash)
     try {
+      console.info('[P2P GUI] download requested:', result.fileName, result.fileHash, result.size)
       await api.startDownload(result.fileHash, result.fileName, result.size)
+      console.info('[P2P GUI] download accepted by local peer:', result.fileName)
       onDownloadStarted?.()
     } catch (err) {
+      console.error('[P2P GUI] download request failed:', err.message)
       setError(err.message)
     } finally {
       setStartingHash(null)

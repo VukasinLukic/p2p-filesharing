@@ -45,17 +45,24 @@ function readInitialBase() {
   const fromUrl = params.get('api') || params.get('port')
   if (fromUrl) {
     const { base } = normalizeApiBase(fromUrl)
-    if (base) return base
+    if (base) {
+      console.info('[P2P GUI] API selected from URL:', base, 'page:', window.location.href)
+      return base
+    }
   }
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY)
     if (stored) {
       const { base } = normalizeApiBase(stored)
-      if (base) return base
+      if (base) {
+        console.info('[P2P GUI] API selected from browser storage:', base)
+        return base
+      }
     }
   } catch {
     // localStorage can throw in private-mode / blocked-cookies browsers - fall through to default.
   }
+  console.info('[P2P GUI] API selected from default:', DEFAULT_API_BASE)
   return DEFAULT_API_BASE
 }
 
@@ -69,9 +76,13 @@ export function getPeerApiBase() {
 /** Persists the new base and notifies React; returns the same shape as normalizeApiBase(). */
 export function setPeerApiBase(raw) {
   const result = normalizeApiBase(raw)
-  if (result.error) return result
+  if (result.error) {
+    console.warn('[P2P GUI] rejected API address:', raw, result.error)
+    return result
+  }
 
   currentBase = result.base
+  console.info('[P2P GUI] API address changed:', currentBase)
   try {
     window.localStorage.setItem(STORAGE_KEY, result.base)
   } catch {
@@ -88,6 +99,7 @@ export function resetPeerApiBase() {
     // ignore
   }
   currentBase = DEFAULT_API_BASE
+  console.info('[P2P GUI] API address reset:', currentBase)
   listeners.forEach((fn) => fn())
   return { base: currentBase }
 }

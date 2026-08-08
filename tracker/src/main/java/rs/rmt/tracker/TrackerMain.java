@@ -176,6 +176,8 @@ public final class TrackerMain {
                 results.add(Json.obj("fileHash", r.fileHash(), "fileName", r.fileName(),
                         "size", r.size(), "peerCount", r.peerCount()));
             }
+            System.out.println("[SEARCH] query='" + q + "' from " + exchange.getRemoteAddress()
+                    + " -> " + results.size() + " result(s)");
             HttpUtil.sendJson(exchange, 200, results);
         });
 
@@ -184,6 +186,8 @@ public final class TrackerMain {
             for (PeerRef r : registry.peersForFile(params.get("fileHash"))) {
                 results.add(Json.obj("peerId", r.peerId(), "host", r.host(), "port", r.port()));
             }
+            System.out.println("[PEERS] fileHash=" + params.get("fileHash") + " -> " + results.size()
+                    + " peer(s): " + results);
             HttpUtil.sendJson(exchange, 200, results);
         });
 
