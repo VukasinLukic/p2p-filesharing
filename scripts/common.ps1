@@ -11,7 +11,7 @@ $TrackerDir = Join-Path $RepoRoot "tracker"
 $PeerDir = Join-Path $RepoRoot "peer-node"
 $FrontendDir = Join-Path $RepoRoot "frontend"
 $SettingsFile = Join-Path $PSScriptRoot "settings.json"
-$FrontendPort = 5173
+$FrontendPort = 8888
 
 function Write-Step($message) {
     Write-Host ""
@@ -153,7 +153,11 @@ function Start-FrontendIfNeeded {
     Start-Process -FilePath "cmd.exe" `
         -ArgumentList "/k", "title P2P Frontend (Vite) && npm run dev" `
         -WorkingDirectory $FrontendDir | Out-Null
-    Wait-ForPort -Port $FrontendPort -TimeoutSeconds 60 -Label "frontend" | Out-Null
+    # A first cold start on a slow disk (or a OneDrive-synced folder) can take well over a minute.
+    if (-not (Wait-ForPort -Port $FrontendPort -TimeoutSeconds 180 -Label "frontend")) {
+        Write-Warn "Frontend se jos nije podigao. Pogledaj prozor 'P2P Frontend (Vite)'."
+        Write-Host "   Ako je krenuo kasnije, samo osvezi stranicu u pretrazivacu (F5)."
+    }
 }
 
 function Open-Frontend([int]$PeerHttpPort) {

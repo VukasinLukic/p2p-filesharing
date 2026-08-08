@@ -68,6 +68,36 @@ public final class TrackerMain {
         }));
     }
 
+    /**
+     * Decides which address other peers will be told to connect to.
+     *
+     * Normally that is the source address of the registration request: the tracker's own view of
+     * the connection can't be misreported by a peer that misdetects its interfaces. The exception
+     * is a peer sharing a machine with the tracker - it registers over localhost, so all the
+     * tracker sees is 127.0.0.1, and handing that to a peer on another machine points it at its
+     * own port. In that case only, the LAN address the peer reports for itself is used.
+     */
+    static String chooseHost(String remoteHost, String advertisedHost) {
+        if (!isLoopback(remoteHost)) return remoteHost;
+        if (advertisedHost == null) return remoteHost;
+
+        String advertised = advertisedHost.trim();
+        // The value ends up inside host:port strings dialled by other peers - keep it boring.
+        if (advertised.isEmpty() || advertised.length() > 255 || !advertised.matches("[A-Za-z0-9.:_-]+")) {
+            return remoteHost;
+        }
+        if (isLoopback(advertised)) return remoteHost;
+        return advertised;
+    }
+
+    private static boolean isLoopback(String host) {
+        if (host == null) return true;
+        return host.startsWith("127.")
+                || host.equals("::1")
+                || host.equals("0:0:0:0:0:0:0:1")
+                || host.equalsIgnoreCase("localhost");
+    }
+
     /** Peer/file endpoints only - accounts are optional, so this overload keeps them out. */
     public static Router buildRouter(TrackerRegistry registry) {
         return buildRouter(registry, null, null);
@@ -93,7 +123,8 @@ public final class TrackerMain {
                 return;
             }
             String requestedId = Json.getString(body, "peerId");
-            String host = exchange.getRemoteAddress().getAddress().getHostAddress();
+            String host = chooseHost(exchange.getRemoteAddress().getAddress().getHostAddress(),
+                    Json.getString(body, "host"));
 
             PeerInfo info = registry.register(requestedId, host, port);
             System.out.println("[REGISTER] peerId=" + info.peerId() + " host=" + info.host() + " port=" + info.port());

@@ -94,9 +94,21 @@ Najlakše: na jednom računaru `START-TRACKER.bat` (ispisuje svoj IP), na drugom
 `START-KOLEGINICA-LAN-PEER.bat` i unese se taj IP.
 
 Ručno: pokreni tracker na jednom računaru (npr. Računar A), zatim na svakom računaru pokreni peer sa
-`--tracker-url http://<IP-Računara-A>:8080`. Tracker automatski detektuje IP adresu svakog peer-a
-preko dolazne konekcije, tako da peer ne mora sam da prijavljuje svoj IP. Proveri da Windows Firewall
-dozvoljava Java na privatnoj mreži (inače TCP/HTTP portovi neće biti dostupni sa druge mašine).
+`--tracker-url http://<IP-Računara-A>:8080`. Proveri da Windows Firewall dozvoljava Java na privatnoj
+mreži (inače TCP/HTTP portovi neće biti dostupni sa druge mašine).
+
+**Kako se određuje adresa peer-a** (bitno za odbranu — ovo je bio pravi bug): tracker po pravilu koristi
+izvornu adresu dolazne konekcije, jer je to jedina koju peer ne može pogrešno da prijavi. Izuzetak je
+peer koji radi na **istoj mašini kao tracker** — on se javlja preko `localhost`, pa tracker vidi samo
+`127.0.0.1` i tu adresu bi dao drugom računaru, koji bi onda pokušao da preuzme fajl sa **svog** porta
+9001 (`Connection refused`). Zato peer u `register` zahtevu javlja i svoju LAN adresu, a tracker je
+koristi **samo** kada je zahtev stigao preko loopback-a (`TrackerMain.chooseHost`).
+
+Samu adresu peer nalazi u [LocalAddress.java](peer-node/src/main/java/rs/rmt/peer/util/LocalAddress.java):
+prvo gleda koju lokalnu adresu koristi konekcija ka trackeru, pa adresu podrazumevane rute (UDP
+`connect` bez slanja paketa — samo upit u routing tabelu), pa tek onda nabrajanje interfejsa. Obično
+nabrajanje ne valja: Java-in `isVirtual()` **ne** prepoznaje Hyper-V/WSL/Docker adaptere, pa na tipičnoj
+Windows mašini vrati npr. `172.27.224.1` koji nijedan drugi računar ne može da dosegne.
 
 ## Provera Definition of Done (iz PRD-a)
 

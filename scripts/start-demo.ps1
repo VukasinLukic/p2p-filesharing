@@ -1,4 +1,4 @@
-﻿# Full local demo: tracker + two peers + frontend, each in its own window, on one machine.
+# Full local demo: tracker + two peers + frontend, each in its own window, on one machine.
 . (Join-Path $PSScriptRoot "common.ps1")
 
 Write-Host "=============================================="
@@ -62,11 +62,10 @@ Write-Host ""
 Write-Host "=============================================="
 Write-Host "  Sve je pokrenuto." -ForegroundColor Green
 Write-Host "=============================================="
-Write-Host "  Peer A (deli fajl):    http://localhost:5173/?port=7001"
-Write-Host "  Peer B (preuzima):     http://localhost:5173/?port=7002"
+Write-Host "  Peer A (deli fajl):    http://localhost:8888/?port=7001"
+Write-Host "  Peer B (preuzima):     http://localhost:8888/?port=7002"
 Write-Host "  Tracker (debug):       http://localhost:8080/api/peers"
 Write-Host ""
 Write-Host "  Demo: u tabu Peer B -> Pretraga -> 'demo' -> Preuzmi."
 Write-Host "  Zaustavljanje: zatvori sve otvorene prozore (ili Ctrl+C u svakom)."
 Write-Host ""
-

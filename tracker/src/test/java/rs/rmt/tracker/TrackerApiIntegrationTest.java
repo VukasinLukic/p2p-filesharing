@@ -101,6 +101,32 @@ public class TrackerApiIntegrationTest {
         }
     }
 
+    public void testPeerOnTheTrackersMachineIsPublishedAtItsLanAddress() throws Exception {
+        startServer();
+        try {
+            // The test client connects over loopback - exactly the situation of a peer running on
+            // the tracker's own machine, which used to be published as 127.0.0.1 to everyone.
+            HttpResponse<String> regResp = post("/api/peers/register",
+                    Json.stringify(Json.obj("port", 9001, "host", "192.168.1.119")));
+            Assert.assertEquals(200, regResp.statusCode(), "register should succeed");
+            Map<String, Object> regBody = Json.parseObject(regResp.body());
+            Assert.assertEquals("192.168.1.119", regBody.get("host"), "peer is told which address it was published at");
+
+            String peerId = (String) regBody.get("peerId");
+            post("/api/peers/" + peerId + "/files",
+                    Json.stringify(List.of(Json.obj("fileHash", "h1", "fileName", "slika.png", "size", 100))));
+
+            List<Object> peers = Json.parseArray(get("/api/files/h1/peers").body());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> peer = (Map<String, Object>) peers.get(0);
+            Assert.assertEquals("192.168.1.119", peer.get("host"),
+                    "another machine must be sent to the LAN address, not to its own loopback");
+            Assert.assertEquals(9001L, peer.get("port"), "port is unchanged");
+        } finally {
+            stopServer();
+        }
+    }
+
     public void testUnknownRouteReturns404() throws Exception {
         startServer();
         try {

@@ -12,6 +12,7 @@ public final class AllTests {
                 JsonTest.class,
                 TrackerRegistryTest.class,
                 TrackerApiIntegrationTest.class,
+                HostResolutionTest.class,
                 UserStoreTest.class,
                 SessionStoreTest.class,
                 AuthApiIntegrationTest.class

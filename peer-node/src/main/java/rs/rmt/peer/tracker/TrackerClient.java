@@ -4,6 +4,7 @@ import rs.rmt.peer.model.FileMeta;
 import rs.rmt.peer.model.FileSearchResult;
 import rs.rmt.peer.model.PeerRef;
 import rs.rmt.peer.util.Json;
+import rs.rmt.peer.util.LocalAddress;
 
 import java.io.IOException;
 import java.net.URI;
@@ -26,6 +27,8 @@ public final class TrackerClient {
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
+    /** Detected once: enumerating interfaces on every heartbeat re-registration would be wasteful. */
+    private volatile String advertisedHost;
 
     public TrackerClient(String trackerUrl) {
         this.trackerUrl = trackerUrl;
@@ -35,6 +38,10 @@ public final class TrackerClient {
         Map<String, Object> body = new LinkedHashMap<>();
         if (existingPeerId != null) body.put("peerId", existingPeerId);
         body.put("port", tcpPort);
+        // Only matters when this peer and the tracker share a machine: the request then arrives
+        // over loopback and the tracker cannot see an address worth giving to other machines.
+        String host = advertisedHost();
+        if (host != null) body.put("host", host);
 
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(trackerUrl + "/api/peers/register"))
@@ -107,6 +114,16 @@ public final class TrackerClient {
             results.add(new PeerRef(Json.getString(m, "peerId"), Json.getString(m, "host"), Json.getInt(m, "port")));
         }
         return results;
+    }
+
+    private String advertisedHost() {
+        String cached = advertisedHost;
+        if (cached == null) {
+            cached = LocalAddress.towards(trackerUrl);
+            advertisedHost = cached;
+            if (cached != null) System.out.println("[Register] advertising LAN address " + cached);
+        }
+        return cached;
     }
 
     public void unregister(String peerId) {
