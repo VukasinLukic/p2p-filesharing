@@ -1,5 +1,5 @@
 param(
-    [string]$Label = "B",
+    [string]$Label = "2",
     [string]$SharedDir = "./shared-b",
     [string]$DownloadDir = "./downloads-b",
     [int]$TcpPort = 9002,

@@ -41,6 +41,11 @@ export const api = {
   status: () => request('/status'),
   downloads: () => request('/downloads'),
   downloadedFiles: () => request('/downloads/files'),
+  openDownloadedFile: (fileName) =>
+    request('/downloads/open', {
+      method: 'POST',
+      body: JSON.stringify({ fileName }),
+    }),
   uploadToLibrary: (file) =>
     request('/library/upload', {
       method: 'POST',

@@ -1,37 +1,43 @@
 # P2P File Sharing
 
-Java i React aplikacija za deljenje fajlova u lokalnoj mreži. Tracker vodi evidenciju aktivnih peer-ova i njihovih fajlova, dok se sam prenos odvija direktno između peer-ova preko TCP konekcije.
+Aplikacija koristi tracker za pronalaženje peer-ova, a fajlove prenosi direktno između peer-ova preko TCP veze.
 
-## Komponente
+## Preduslovi
 
-- `tracker` — centralni registar peer-ova, port `8080`
-- `peer-node` — lokalni REST API i TCP server za prenos fajlova
-- `frontend` — React korisnički interfejs, port `8888`
+- JDK 17+
+- Node.js 18+
 
-## Pokretanje
+## Lokalni demo — jedan računar
 
-Potreban je JDK 17+ i Node.js 18+.
+1. Zatvoriti prethodno pokrenute P2P prozore.
+2. Pokrenuti `START-LOKALNI-DEMO.bat`.
+3. Sačekati poruku `Demo ready`.
+4. U tabu za Peer 2 otvoriti **Pretraga**, pronaći `demo-10mb.bin` i kliknuti **Preuzmi**.
 
-Na računaru koji deli fajl:
+Skripta pokreće tracker, Peer 1, Peer 2 i frontend. Peer 1 deli test fajl, a Peer 2 ga preuzima.
+
+## Dva računara u istoj mreži
+
+Na prvom računaru:
 
 1. Pokrenuti `START-TRACKER.bat`.
-2. Pokrenuti `START-MOJ-PEER.bat`.
+2. Pokrenuti `START-PEER1.bat`.
 
 Na drugom računaru:
 
-1. Pokrenuti `START-KOLEGINICA-LAN-PEER.bat`.
-2. Uneti LAN IP adresu računara na kojem je tracker.
+1. Pokrenuti `START-PEER2.bat`.
+2. Uneti LAN IP adresu računara sa trackerom.
 
-Peer A koristi HTTP port `7001` i TCP port `9001`. Peer B koristi HTTP port `7002` i TCP port `9002`.
+Peer 1 koristi HTTP port `7001` i TCP port `9001`. Peer 2 koristi HTTP port `7002` i TCP port `9002`.
 
-## Korišćenje
+## Funkcije
 
-- Kartica **Biblioteka** prikazuje lokalne fajlove i omogućava dodavanje fajla u `shared` folder.
-- Kartica **Pretraga** pronalazi fajlove koje nude drugi peer-ovi.
-- Kartica **Preuzimanja** prikazuje napredak transfera i sadržaj lokalnog `downloads` foldera.
-- Zeleno svetlo označava da je lokalni peer povezan sa trackerom.
+- Dodavanje fajla u `shared` folder iz kartice **Biblioteka**
+- Pretraga fajlova preko trackera
+- Direktno P2P preuzimanje sa prikazom napretka
+- Pregled i otvaranje završenih fajlova iz kartice **Preuzimanja**
 
-Za LAN prenos Windows Firewall mora dozvoliti Java aplikaciji privatnu mrežu, uključujući TCP port `9001` na računaru Peer A.
+Za LAN transfer Windows Firewall mora dozvoliti Java aplikaciji privatnu mrežu, posebno TCP port `9001` na računaru Peer 1.
 
 ## Provera
 

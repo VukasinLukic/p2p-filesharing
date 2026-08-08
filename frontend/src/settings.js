@@ -2,7 +2,7 @@
 // from the "Podesavanja mreze" modal, so a demo never needs a rebuild or a hand-edited URL.
 //
 // Precedence: ?api=<url> / ?port=<n> in the URL  >  localStorage  >  http://localhost:7001/api
-// A URL parameter wins on purpose: START-*.bat opens the browser with ?port=7002 for Peer B, and
+// A URL parameter wins on purpose: START-*.bat opens the browser with ?port=7002 for Peer 2, and
 // that explicit intent must not be overridden by whatever was saved in an earlier session.
 
 const STORAGE_KEY = 'p2p.peerApiBase'

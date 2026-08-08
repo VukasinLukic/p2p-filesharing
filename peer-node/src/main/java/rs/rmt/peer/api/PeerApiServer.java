@@ -19,6 +19,7 @@ import rs.rmt.peer.util.Router;
 
 import java.nio.file.Files;
 import java.io.IOException;
+import java.awt.Desktop;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.net.URLDecoder;
@@ -165,6 +166,32 @@ public final class PeerApiServer {
                 }
             }
             HttpUtil.sendJson(exchange, 200, out);
+        });
+
+        router.add("POST", "/api/downloads/open", (exchange, params) -> {
+            Map<String, Object> body = Json.parseObject(HttpUtil.readBody(exchange));
+            String fileName = Json.getString(body, "fileName");
+            if (fileName == null || fileName.isBlank()) {
+                HttpUtil.sendJson(exchange, 400, Json.obj("error", "fileName is required"));
+                return;
+            }
+            Path file = config.downloadDir.resolve(fileName).normalize();
+            if (!file.startsWith(config.downloadDir) || !Files.isRegularFile(file)) {
+                HttpUtil.sendJson(exchange, 404, Json.obj("error", "Downloaded file was not found"));
+                return;
+            }
+            if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                HttpUtil.sendJson(exchange, 501, Json.obj("error", "Opening files is not supported on this computer"));
+                return;
+            }
+            try {
+                Desktop.getDesktop().open(file.toFile());
+                System.out.println("[Downloads] opened " + file.getFileName());
+                HttpUtil.sendJson(exchange, 200, Json.obj("status", "opened"));
+            } catch (IOException e) {
+                System.err.println("[Downloads] could not open " + file.getFileName() + ": " + e.getMessage());
+                HttpUtil.sendJson(exchange, 500, Json.obj("error", "Could not open file: " + e.getMessage()));
+            }
         });
 
         // Per-chunk manifest for a file this peer owns. Groundwork for block-level verification

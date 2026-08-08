@@ -178,11 +178,9 @@ function New-DemoFileIfEmpty([string]$SharedDir, [string]$FileName = "demo-10mb.
     if (-not (Test-Path $SharedDir)) {
         New-Item -ItemType Directory -Path $SharedDir -Force | Out-Null
     }
-    $existing = @(Get-ChildItem -Path $SharedDir -File -Recurse -ErrorAction SilentlyContinue)
-    if ($existing.Count -gt 0) { return }
-
     $target = Join-Path $SharedDir $FileName
-    Write-Host "   deljeni folder je prazan - pravim test fajl $FileName ($SizeMb MB)" -ForegroundColor DarkGray
+    if (Test-Path $target) { return }
+    Write-Host "   pravim test fajl $FileName ($SizeMb MB)" -ForegroundColor DarkGray
     $buffer = [byte[]]::new(1MB)
     [System.Random]::new(42).NextBytes($buffer)
     $stream = [System.IO.File]::Create($target)

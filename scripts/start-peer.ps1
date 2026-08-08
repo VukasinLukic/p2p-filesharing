@@ -6,6 +6,7 @@
     [int]$HttpPort = 7001,
     [string]$TrackerUrl = "http://localhost:8080",
     [switch]$NoFrontend,
+    [switch]$NoBuild,
     [switch]$SeedDemoFile
 )
 . (Join-Path $PSScriptRoot "common.ps1")
@@ -24,8 +25,10 @@ if ($SeedDemoFile) { New-DemoFileIfEmpty -SharedDir $absShared }
 
 Write-Host "  TCP: $TcpPort | API: $HttpPort | Tracker: $TrackerUrl"
 
-Write-Step "Kompajliram peer-node"
-Invoke-JavaBuild $PeerDir
+if (-not $NoBuild) {
+    Write-Step "Kompajliram peer-node"
+    Invoke-JavaBuild $PeerDir
+}
 
 if (-not $NoFrontend) {
     Start-FrontendIfNeeded -NoWait

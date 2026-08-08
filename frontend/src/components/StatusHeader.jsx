@@ -13,19 +13,12 @@ export default function StatusHeader() {
   const waitingForPeer = Boolean(error) && !status
   const statusLabel = waitingForPeer
     ? 'Pokretanje lokalnog peer-a…'
-    : online
-      ? 'Povezan sa trackerom'
-      : status
-        ? 'Peer radi — tracker nije dostupan'
-        : 'Nije povezan'
+    : online ? 'Povezan sa trackerom' : status ? 'Peer radi — tracker nije dostupan' : 'Nije povezan'
 
   return (
     <>
       <header className="glass-panel status-header">
-        <div>
-          <h1 className="brand-title">P2P Share</h1>
-          <p className="brand-sub">Hybrid Peer-to-Peer · Tracker Discovery · RMT Projekat</p>
-        </div>
+        <h1 className="brand-title">P2P Share</h1>
         <div className="status-dot-group">
           <span className={`status-dot ${online ? 'online' : waitingForPeer ? 'connecting' : ''}`} />
           <div>
@@ -35,18 +28,10 @@ export default function StatusHeader() {
               <code>{status?.tcpPort ?? '—'}</code> · api <code>{hostLabel(apiBase)}</code>
             </div>
           </div>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setSettingsOpen(true)}
-            title="Podešavanja mreže"
-            aria-label="Podešavanja mreže"
-          >
-            <GearIcon />
-          </button>
+          <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)}
+                  title="Podešavanja mreže" aria-label="Podešavanja mreže"><GearIcon /></button>
         </div>
       </header>
-
       {settingsOpen && <NetworkSettingsModal onClose={() => setSettingsOpen(false)} />}
     </>
   )

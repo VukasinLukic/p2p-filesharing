@@ -61,7 +61,7 @@ public final class PeerMain {
         ExecutorService httpExecutor = Executors.newCachedThreadPool();
         Router apiRouter = PeerApiServer.build(config, state, library, trackerClient, trackerSession,
                 downloadManager, downloadService);
-        HttpServer httpServer = HttpServer.create(new InetSocketAddress(config.httpPort), 0);
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress("127.0.0.1", config.httpPort), 0);
         httpServer.createContext("/", apiRouter);
         httpServer.setExecutor(httpExecutor);
         httpServer.start();
