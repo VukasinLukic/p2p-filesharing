@@ -7,6 +7,7 @@ import rs.rmt.peer.share.LibraryService;
 import rs.rmt.peer.share.SharedFolderScanner;
 import rs.rmt.peer.state.PeerState;
 import rs.rmt.peer.tracker.TrackerClient;
+import rs.rmt.peer.tracker.TrackerSession;
 import rs.rmt.peer.transfer.DownloadManager;
 import rs.rmt.peer.transfer.DownloadService;
 import rs.rmt.peer.transfer.FileServer;
@@ -44,17 +45,19 @@ public final class PeerMain {
         fileServerThread.start();
 
         TrackerClient trackerClient = new TrackerClient(config.trackerUrl);
+        TrackerSession trackerSession = new TrackerSession(config, state, trackerClient, library);
         DownloadManager downloadManager = new DownloadManager();
         DownloadService downloadService = new DownloadService(config.downloadDir, library);
 
-        registerAndAnnounce(config, state, trackerClient, library);
+        trackerSession.registerAndAnnounce();
 
         ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
-        heartbeatExecutor.scheduleAtFixedRate(() -> runHeartbeat(config, state, trackerClient, library),
+        heartbeatExecutor.scheduleAtFixedRate(trackerSession::heartbeat,
                 HEARTBEAT_INTERVAL_SECONDS, HEARTBEAT_INTERVAL_SECONDS, TimeUnit.SECONDS);
 
         ExecutorService httpExecutor = Executors.newCachedThreadPool();
-        Router apiRouter = PeerApiServer.build(config, state, library, trackerClient, downloadManager, downloadService);
+        Router apiRouter = PeerApiServer.build(config, state, library, trackerClient, trackerSession,
+                downloadManager, downloadService);
         HttpServer httpServer = HttpServer.create(new InetSocketAddress(config.httpPort), 0);
         httpServer.createContext("/", apiRouter);
         httpServer.setExecutor(httpExecutor);
@@ -69,43 +72,5 @@ public final class PeerMain {
             httpServer.stop(0);
             httpExecutor.shutdownNow();
         }));
-    }
-
-    /** Registers (if needed) and makes sure the file list has been announced at least once. */
-    private static void registerAndAnnounce(PeerConfig config, PeerState state, TrackerClient trackerClient, LibraryService library) {
-        try {
-            if (state.peerId == null) {
-                TrackerClient.RegisterResult reg = trackerClient.register(null, config.tcpPort);
-                state.peerId = reg.peerId();
-                System.out.println("[Register] peerId=" + state.peerId + " host=" + reg.host());
-            }
-            trackerClient.announceFiles(state.peerId, library.allFiles());
-            state.filesAnnounced.set(true);
-            state.connectedToTracker.set(true);
-        } catch (Exception e) {
-            state.connectedToTracker.set(false);
-            System.err.println("[Register/Announce] failed, will retry on next heartbeat: " + e.getMessage());
-        }
-    }
-
-    private static void runHeartbeat(PeerConfig config, PeerState state, TrackerClient trackerClient, LibraryService library) {
-        try {
-            if (state.peerId == null || !state.filesAnnounced.get()) {
-                registerAndAnnounce(config, state, trackerClient, library);
-                return;
-            }
-            boolean ok = trackerClient.heartbeat(state.peerId);
-            if (!ok) {
-                System.out.println("[Heartbeat] tracker forgot us (restarted?) - re-registering");
-                state.peerId = null;
-                state.filesAnnounced.set(false);
-                registerAndAnnounce(config, state, trackerClient, library);
-            } else {
-                state.connectedToTracker.set(true);
-            }
-        } catch (Exception e) {
-            state.connectedToTracker.set(false);
-            System.err.println("[Heartbeat] tracker unreachable: " + e.getMessage());
-        }
     }
 }

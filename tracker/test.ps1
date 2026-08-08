@@ -1,5 +1,6 @@
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
+. (Join-Path (Split-Path -Parent $root) "scripts\java-tools.ps1")
 $mainSrc = Join-Path $root "src\main\java"
 $testSrc = Join-Path $root "src\test\java"
 $out = Join-Path $root "out-test"
@@ -14,11 +15,11 @@ $files += Get-ChildItem -Path $testSrc -Recurse -Filter *.java | ForEach-Object 
 [System.IO.File]::WriteAllLines($sources, $files, [System.Text.UTF8Encoding]::new($false))
 
 Write-Host "Compiling tracker (main + test)..."
-javac -encoding UTF-8 -d $out "@$sources"
+& (Get-JavacExe) -encoding UTF-8 -d $out "@$sources"
 Remove-Item $sources
 
 Write-Host "Running tests..."
-java -cp $out rs.rmt.tracker.AllTests
+& (Get-JavaExe) -cp $out rs.rmt.tracker.AllTests
 $exitCode = $LASTEXITCODE
 
 if ($exitCode -ne 0) {

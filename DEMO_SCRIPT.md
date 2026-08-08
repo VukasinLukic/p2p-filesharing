@@ -32,7 +32,19 @@ jedan koji ga preuzima).
 
 ---
 
-## 1. Pokretanje (4 terminala, ovim redosledom)
+## 1. Pokretanje
+
+### Najlakše: dupli klik na `START-LOKALNI-DEMO.bat`
+
+Skripta radi sve iz sekcije ispod: kompajlira oba Java modula, pokreće Tracker → Peer A → Peer B →
+frontend (svaki u svom prozoru, u pravom redosledu, uz čekanje da se prethodni podigne) i otvara oba
+browser taba (`?port=7001` i `?port=7002`). Ako je `peer-node/shared-a` prazan, napravi 10MB test fajl
+da demo ima šta da prenese.
+
+Za prezentaciju je i dalje korisno da znaš šta se ispod dešava — komisija to može pitati — pa je ručna
+varijanta ostavljena u celini.
+
+### Ručno: 4 terminala, ovim redosledom
 
 **Terminal 1 — Tracker:**
 ```powershell

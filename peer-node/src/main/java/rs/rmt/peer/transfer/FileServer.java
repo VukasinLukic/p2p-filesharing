@@ -1,5 +1,6 @@
 package rs.rmt.peer.transfer;
 
+import rs.rmt.peer.share.ChunkHasher;
 import rs.rmt.peer.share.LibraryService;
 
 import java.io.IOException;
@@ -17,13 +18,19 @@ public final class FileServer implements Runnable {
     private static final int UPLOAD_THREAD_POOL_SIZE = 8;
 
     private final LibraryService library;
+    private final ChunkHasher chunkHasher;
     private final ExecutorService uploadPool = Executors.newFixedThreadPool(UPLOAD_THREAD_POOL_SIZE);
     private final ServerSocket serverSocket;
     private volatile boolean running = true;
 
-    /** Binds synchronously so a port-in-use failure surfaces immediately at construction time. */
     public FileServer(int port, LibraryService library) throws IOException {
+        this(port, library, new ChunkHasher());
+    }
+
+    /** Binds synchronously so a port-in-use failure surfaces immediately at construction time. */
+    public FileServer(int port, LibraryService library, ChunkHasher chunkHasher) throws IOException {
         this.library = library;
+        this.chunkHasher = chunkHasher;
         this.serverSocket = new ServerSocket(port);
     }
 
@@ -37,7 +44,7 @@ public final class FileServer implements Runnable {
         while (running) {
             try {
                 Socket socket = serverSocket.accept();
-                uploadPool.submit(new UploadHandler(socket, library));
+                uploadPool.submit(new UploadHandler(socket, library, chunkHasher));
             } catch (IOException e) {
                 if (running) e.printStackTrace();
             }

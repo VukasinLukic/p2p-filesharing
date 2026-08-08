@@ -10,6 +10,12 @@ peer-node/shared*/
 peer-node/downloads*/
 **/*.part
 
+# Tracker user store (real accounts - never commit)
+tracker/data/
+
+# Launcher state (per-machine: saved tracker IP)
+scripts/settings.json
+
 # Node / frontend
 frontend/node_modules/
 frontend/dist/

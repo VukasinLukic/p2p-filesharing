@@ -7,13 +7,14 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
+. (Join-Path (Split-Path -Parent $root) "scripts\java-tools.ps1")
 $out = Join-Path $root "out"
 
 if (-not (Test-Path $out)) {
     & (Join-Path $root "build.ps1")
 }
 
-java -cp $out rs.rmt.peer.PeerMain `
+& (Get-JavaExe) -cp $out rs.rmt.peer.PeerMain `
     --shared-dir $SharedDir `
     --download-dir $DownloadDir `
     --tcp-port $TcpPort `

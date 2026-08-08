@@ -3,9 +3,11 @@ package rs.rmt.peer.api;
 import com.sun.net.httpserver.HttpServer;
 import rs.rmt.peer.config.PeerConfig;
 import rs.rmt.peer.share.LibraryService;
+import rs.rmt.peer.share.SharedFolderScanner;
 import rs.rmt.peer.state.PeerState;
 import rs.rmt.peer.testutil.Assert;
 import rs.rmt.peer.tracker.TrackerClient;
+import rs.rmt.peer.tracker.TrackerSession;
 import rs.rmt.peer.transfer.DownloadManager;
 import rs.rmt.peer.transfer.DownloadService;
 import rs.rmt.peer.util.HttpUtil;
@@ -127,6 +129,87 @@ public class PeerApiServerTest {
         }
     }
 
+    public void testChunkManifestEndpointReturns404ForUnknownFile() throws Exception {
+        Path tempDir = Files.createTempDirectory("peerapi-test");
+        try {
+            startPeerApi(tempDir, "http://localhost:1", new LibraryService(), null);
+
+            HttpResponse<String> resp = get("/api/files/deadbeef/chunks");
+            Assert.assertEquals(404, resp.statusCode(), "chunk manifest for a file we don't have must 404");
+        } finally {
+            stopAll();
+            deleteRecursively(tempDir);
+        }
+    }
+
+    public void testChunkManifestEndpointReturnsOneHashPerBlock() throws Exception {
+        Path tempDir = Files.createTempDirectory("peerapi-test");
+        try {
+            // 3 chunks with the default 512KB block size: two full blocks plus a short tail.
+            Path file = tempDir.resolve("chunky.bin");
+            byte[] data = new byte[512 * 1024 * 2 + 1000];
+            Files.write(file, data);
+            String fileHash = SharedFolderScanner.sha256(file);
+
+            LibraryService library = new LibraryService();
+            library.addFile(fileHash, "chunky.bin", data.length, file);
+            startPeerApi(tempDir, "http://localhost:1", library, null);
+
+            HttpResponse<String> resp = get("/api/files/" + fileHash + "/chunks");
+            Assert.assertEquals(200, resp.statusCode(), "chunk manifest for an owned file must succeed");
+            Map<String, Object> body = Json.parseObject(resp.body());
+            Assert.assertEquals(3L, body.get("chunkCount"), "two full 512KB blocks plus a partial one");
+            Assert.assertEquals(3, ((List<?>) body.get("chunkHashes")).size(), "one hash per block");
+        } finally {
+            stopAll();
+            deleteRecursively(tempDir);
+        }
+    }
+
+    public void testReconnectEndpointReRegistersAgainstLiveTracker() throws Exception {
+        Path tempDir = Files.createTempDirectory("peerapi-test");
+        try {
+            fakeTracker = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+            fakeTracker.createContext("/api/peers/register", exchange ->
+                    HttpUtil.sendJson(exchange, 200, Json.obj("peerId", "peer-from-tracker", "host", "127.0.0.1")));
+            fakeTracker.createContext("/api/peers/peer-from-tracker/files", exchange ->
+                    HttpUtil.sendJson(exchange, 200, Json.obj("status", "ok", "fileCount", 0)));
+            fakeTracker.setExecutor(Executors.newCachedThreadPool());
+            fakeTracker.start();
+            String trackerUrl = "http://localhost:" + fakeTracker.getAddress().getPort();
+
+            startPeerApi(tempDir, trackerUrl, new LibraryService(), null);
+
+            HttpResponse<String> resp = post("/api/tracker/reconnect", "");
+            Assert.assertEquals(200, resp.statusCode(), "manual reconnect responds 200");
+            Map<String, Object> body = Json.parseObject(resp.body());
+            Assert.assertEquals(true, body.get("reconnected"), "reconnect against a live tracker succeeds");
+            Assert.assertEquals(true, body.get("connectedToTracker"), "status in the same response is refreshed");
+            Assert.assertEquals("peer-from-tracker", body.get("peerId"), "peerId comes from the tracker");
+        } finally {
+            stopAll();
+            deleteRecursively(tempDir);
+        }
+    }
+
+    public void testReconnectEndpointReportsFailureWhenTrackerIsDown() throws Exception {
+        Path tempDir = Files.createTempDirectory("peerapi-test");
+        try {
+            // Port 1 is closed - a dead tracker must produce a clean "false", never a 500.
+            startPeerApi(tempDir, "http://localhost:1", new LibraryService(), null);
+
+            HttpResponse<String> resp = post("/api/tracker/reconnect", "");
+            Assert.assertEquals(200, resp.statusCode(), "a dead tracker is a reported state, not a server error");
+            Map<String, Object> body = Json.parseObject(resp.body());
+            Assert.assertEquals(false, body.get("reconnected"), "reconnect must report failure");
+            Assert.assertEquals(false, body.get("connectedToTracker"), "peer must not claim to be connected");
+            Assert.assertNotNull(body.get("error"), "response explains what went wrong");
+        } finally {
+            stopAll();
+            deleteRecursively(tempDir);
+        }
+    }
+
     private void startPeerApi(Path tempDir, String trackerUrl, LibraryService library, String peerId) throws Exception {
         PeerConfig config = PeerConfig.fromArgs(new String[]{
                 "--shared-dir", tempDir.resolve("shared").toString(),
@@ -138,10 +221,12 @@ public class PeerApiServerTest {
         PeerState state = new PeerState();
         state.peerId = peerId;
         TrackerClient trackerClient = new TrackerClient(trackerUrl);
+        TrackerSession trackerSession = new TrackerSession(config, state, trackerClient, library);
         DownloadManager downloadManager = new DownloadManager();
         DownloadService downloadService = new DownloadService(tempDir, library);
 
-        Router router = PeerApiServer.build(config, state, library, trackerClient, downloadManager, downloadService);
+        Router router = PeerApiServer.build(config, state, library, trackerClient, trackerSession,
+                downloadManager, downloadService);
         peerApi = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         peerApi.createContext("/", router);
         peerApi.setExecutor(Executors.newCachedThreadPool());

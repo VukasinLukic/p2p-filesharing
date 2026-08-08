@@ -1,5 +1,7 @@
 package rs.rmt.peer.transfer;
 
+import rs.rmt.peer.model.ChunkManifest;
+import rs.rmt.peer.share.ChunkHasher;
 import rs.rmt.peer.share.LibraryService;
 import rs.rmt.peer.util.Json;
 
@@ -10,6 +12,7 @@ import java.io.RandomAccessFile;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -17,10 +20,16 @@ import java.util.Optional;
 public final class UploadHandler implements Runnable {
     private final Socket socket;
     private final LibraryService library;
+    private final ChunkHasher chunkHasher;
 
     public UploadHandler(Socket socket, LibraryService library) {
+        this(socket, library, new ChunkHasher());
+    }
+
+    public UploadHandler(Socket socket, LibraryService library, ChunkHasher chunkHasher) {
         this.socket = socket;
         this.library = library;
+        this.chunkHasher = chunkHasher;
     }
 
     @Override
@@ -38,10 +47,8 @@ public final class UploadHandler implements Runnable {
 
             Optional<Path> pathOpt = library.resolve(fileHash);
             if (pathOpt.isEmpty() || !Files.exists(pathOpt.get())) {
-                String responseType = TransferProtocol.TYPE_RANGE_REQUEST.equals(type)
-                        ? TransferProtocol.TYPE_RANGE_RESPONSE : TransferProtocol.TYPE_FILE_RESPONSE;
                 TransferProtocol.writeRawLine(out, Json.stringify(Json.obj(
-                        "type", responseType,
+                        "type", responseTypeFor(type),
                         "status", TransferProtocol.STATUS_NOT_FOUND)));
                 return;
             }
@@ -51,6 +58,9 @@ public final class UploadHandler implements Runnable {
 
             if (TransferProtocol.TYPE_RANGE_REQUEST.equals(type)) {
                 serveRange(out, path, fileSize, request);
+            } else if (TransferProtocol.TYPE_CHUNKS_REQUEST.equals(type)) {
+                serveChunkManifest(out, path, fileHash);
+                return; // header-only response, nothing was "served" in the transfer sense
             } else {
                 serveWholeFile(out, path, fileSize, fileHash);
             }
@@ -58,6 +68,25 @@ public final class UploadHandler implements Runnable {
         } catch (IOException e) {
             System.err.println("[Upload] error: " + e.getMessage());
         }
+    }
+
+    /** Errors must answer in the same message family the caller asked in, or it can't parse them. */
+    private static String responseTypeFor(String requestType) {
+        if (TransferProtocol.TYPE_RANGE_REQUEST.equals(requestType)) return TransferProtocol.TYPE_RANGE_RESPONSE;
+        if (TransferProtocol.TYPE_CHUNKS_REQUEST.equals(requestType)) return TransferProtocol.TYPE_CHUNKS_RESPONSE;
+        return TransferProtocol.TYPE_FILE_RESPONSE;
+    }
+
+    /** Per-chunk SHA-256 list, so a downloader can verify (and re-fetch) individual blocks. */
+    private void serveChunkManifest(OutputStream out, Path path, String fileHash) throws IOException {
+        ChunkManifest manifest = chunkHasher.manifestFor(fileHash, path);
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("type", TransferProtocol.TYPE_CHUNKS_RESPONSE);
+        response.put("status", TransferProtocol.STATUS_OK);
+        response.putAll(manifest.toJson());
+        TransferProtocol.writeRawLine(out, Json.stringify(response));
+        System.out.println("[Upload] served chunk manifest for " + path.getFileName()
+                + " (" + manifest.chunkCount() + " chunk(s))");
     }
 
     private void serveWholeFile(OutputStream out, Path path, long size, String fileHash) throws IOException {

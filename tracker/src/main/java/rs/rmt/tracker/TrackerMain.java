@@ -1,18 +1,23 @@
 package rs.rmt.tracker;
 
 import com.sun.net.httpserver.HttpServer;
+import rs.rmt.tracker.auth.AuthRoutes;
 import rs.rmt.tracker.model.FileMeta;
 import rs.rmt.tracker.model.FileSearchResult;
 import rs.rmt.tracker.model.PeerInfo;
 import rs.rmt.tracker.model.PeerRef;
 import rs.rmt.tracker.model.PeerSummary;
 import rs.rmt.tracker.registry.TrackerRegistry;
+import rs.rmt.tracker.users.SessionStore;
+import rs.rmt.tracker.users.UserStore;
 import rs.rmt.tracker.util.HttpUtil;
 import rs.rmt.tracker.util.Json;
 import rs.rmt.tracker.util.Router;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +33,10 @@ public final class TrackerMain {
 
     public static void main(String[] args) throws IOException {
         TrackerRegistry registry = new TrackerRegistry();
-        Router router = buildRouter(registry);
+        Path usersFile = Paths.get(System.getProperty("tracker.data.dir", "./data")).resolve("users.json");
+        UserStore users = new UserStore(usersFile.toAbsolutePath().normalize());
+        SessionStore sessions = new SessionStore();
+        Router router = buildRouter(registry, users, sessions);
 
         ExecutorService httpExecutor = Executors.newCachedThreadPool();
         HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
@@ -39,12 +47,14 @@ public final class TrackerMain {
         System.out.println("=== P2P Tracker ===");
         System.out.println("Listening on http://0.0.0.0:" + PORT);
         System.out.println("Debug view:   http://localhost:" + PORT + "/api/peers");
+        System.out.println("User store:   " + usersFile.toAbsolutePath().normalize() + " (" + users.size() + " account(s))");
 
         ScheduledExecutorService evictor = Executors.newSingleThreadScheduledExecutor();
         evictor.scheduleAtFixedRate(() -> {
             try {
                 int removed = registry.evictDead(HEARTBEAT_TTL_MILLIS);
                 if (removed > 0) System.out.println("[EVICT] removed " + removed + " dead peer(s)");
+                sessions.purgeExpired();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -58,8 +68,16 @@ public final class TrackerMain {
         }));
     }
 
+    /** Peer/file endpoints only - accounts are optional, so this overload keeps them out. */
     public static Router buildRouter(TrackerRegistry registry) {
+        return buildRouter(registry, null, null);
+    }
+
+    public static Router buildRouter(TrackerRegistry registry, UserStore users, SessionStore sessions) {
         Router router = new Router();
+        if (users != null && sessions != null) {
+            AuthRoutes.register(router, users, sessions);
+        }
 
         router.add("POST", "/api/peers/register", (exchange, params) -> {
             Map<String, Object> body = Json.parseObject(HttpUtil.readBody(exchange));

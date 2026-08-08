@@ -1,4 +1,5 @@
 import { api } from '../api'
+import { usePeerApiBase } from '../hooks/usePeerApiBase'
 import { usePolling } from '../hooks/usePolling'
 import { formatBytes, formatSpeed } from '../utils'
 
@@ -10,7 +11,8 @@ const STATUS_LABEL = {
 }
 
 export default function DownloadsTab() {
-  const { data: downloads } = usePolling(api.downloads, 500, [])
+  const apiBase = usePeerApiBase()
+  const { data: downloads } = usePolling(api.downloads, 500, [apiBase])
   const list = downloads ?? []
 
   return (

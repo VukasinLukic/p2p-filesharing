@@ -1,15 +1,12 @@
 // The GUI talks exclusively to the local Peer Node's REST API (never to the tracker directly).
-// Each peer instance runs its HTTP API on its own port, so ?port=7002 lets you point a second
-// browser tab at a second local peer during a demo.
-const params = new URLSearchParams(window.location.search)
-const peerPort = params.get('port') || '7001'
-export const PEER_HTTP_PORT = peerPort
-export const API_BASE = `http://localhost:${peerPort}/api`
+// Each peer instance runs its HTTP API on its own port; the address is resolved per request from
+// settings.js, so the "Podesavanja mreze" modal can repoint the GUI at another peer live.
+import { getPeerApiBase } from './settings'
 
 async function request(path, options = {}) {
   let res
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    res = await fetch(`${getPeerApiBase()}${path}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(8000),
       ...options,
@@ -40,4 +37,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ fileHash, fileName, size }),
     }),
+  /** Forces an immediate re-register/announce instead of waiting for the next 10s heartbeat. */
+  reconnectTracker: () => request('/tracker/reconnect', { method: 'POST' }),
+  chunks: (fileHash) => request(`/files/${encodeURIComponent(fileHash)}/chunks`),
 }

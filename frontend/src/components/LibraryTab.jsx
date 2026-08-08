@@ -1,9 +1,11 @@
 import { api } from '../api'
+import { usePeerApiBase } from '../hooks/usePeerApiBase'
 import { usePolling } from '../hooks/usePolling'
 import { formatBytes } from '../utils'
 
 export default function LibraryTab() {
-  const { data: files } = usePolling(api.library, 2000, [])
+  const apiBase = usePeerApiBase()
+  const { data: files } = usePolling(api.library, 2000, [apiBase])
   const list = files ?? []
 
   return (

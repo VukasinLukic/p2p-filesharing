@@ -18,6 +18,9 @@ public final class TransferProtocol {
     /** Requests a byte range [offset, offset+length) instead of the whole file - used for multi-source parallel downloads. */
     public static final String TYPE_RANGE_REQUEST = "RANGE_REQUEST";
     public static final String TYPE_RANGE_RESPONSE = "RANGE_RESPONSE";
+    /** Asks a peer for the per-chunk SHA-256 manifest of a file; the response is header-only (no body bytes). */
+    public static final String TYPE_CHUNKS_REQUEST = "CHUNKS_REQUEST";
+    public static final String TYPE_CHUNKS_RESPONSE = "CHUNKS_RESPONSE";
     public static final String STATUS_OK = "OK";
     public static final String STATUS_NOT_FOUND = "NOT_FOUND";
 
