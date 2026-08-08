@@ -6,7 +6,7 @@ import { getPeerApiBase } from './settings'
 async function request(path, options = {}) {
   const method = options.method ?? 'GET'
   const url = `${getPeerApiBase()}${path}`
-  const isPoll = method === 'GET' && ['/status', '/downloads', '/library'].includes(path)
+  const isPoll = method === 'GET' && ['/status', '/downloads', '/downloads/files', '/library'].includes(path)
   if (!isPoll) console.info('[P2P GUI] API request', method, url)
   let res
   try {
@@ -40,6 +40,16 @@ export const api = {
   library: () => request('/library'),
   status: () => request('/status'),
   downloads: () => request('/downloads'),
+  downloadedFiles: () => request('/downloads/files'),
+  uploadToLibrary: (file) =>
+    request('/library/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name),
+      },
+      body: file,
+    }),
   startDownload: (fileHash, fileName, size) =>
     request('/downloads', {
       method: 'POST',

@@ -1,6 +1,4 @@
-# Shared helpers for the one-click launcher scripts (START-*.bat -> scripts\start-*.ps1).
-# Deliberately ASCII-only: .bat/.ps1 files are read with the console codepage, so diacritics
-# would render as garbage in the launcher windows on a default Windows install.
+# Launcher helpers.
 
 $ErrorActionPreference = "Stop"
 
@@ -22,7 +20,6 @@ function Write-Warn($message) {
     Write-Host "!! $message" -ForegroundColor Yellow
 }
 
-# Fails early with a readable message instead of a raw "term not recognized" stack.
 function Assert-Command($name, $hint) {
     $found = Get-Command $name -ErrorAction SilentlyContinue
     if (-not $found) {
@@ -35,7 +32,6 @@ function Assert-Command($name, $hint) {
     }
 }
 
-# TcpClient instead of Test-NetConnection: same answer, ~300ms instead of several seconds.
 function Test-PortListening([int]$Port, [string]$TargetHost = "127.0.0.1", [int]$TimeoutMs = 400) {
     $client = New-Object System.Net.Sockets.TcpClient
     try {
@@ -64,8 +60,6 @@ function Wait-ForPort([int]$Port, [string]$TargetHost = "127.0.0.1", [int]$Timeo
     Write-Host " ISTEKLO" -ForegroundColor Yellow
     return $false
 }
-
-# ---------- Persisted launcher settings (scripts\settings.json, gitignored) ----------
 
 function Get-LauncherSettings {
     if (Test-Path $SettingsFile) {
@@ -101,9 +95,6 @@ function Get-LocalIPv4 {
     return $null
 }
 
-# ---------- Java modules ----------
-
-# Same check the build does, but reported up front with a fixable message instead of mid-compile.
 function Assert-Jdk {
     try {
         $java = Get-JavaExe
@@ -119,13 +110,9 @@ function Assert-Jdk {
 }
 
 function Invoke-JavaBuild([string]$ModuleDir) {
-    # Always rebuild: run.ps1 only compiles when out\ is missing, which silently runs stale
-    # .class files after a source edit - the exact failure mode that wastes demo time.
     & (Join-Path $ModuleDir "build.ps1")
     if ($LASTEXITCODE -ne 0) { throw "Kompajliranje nije uspelo: $ModuleDir" }
 }
-
-# ---------- Frontend ----------
 
 function Install-FrontendDepsIfNeeded {
     if (-not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
@@ -140,7 +127,7 @@ function Install-FrontendDepsIfNeeded {
     }
 }
 
-function Start-FrontendIfNeeded {
+function Start-FrontendIfNeeded([switch]$NoWait) {
     if (Test-PortListening -Port $FrontendPort) {
         Write-Host "   frontend vec radi na http://localhost:$FrontendPort" -ForegroundColor DarkGray
         return
@@ -153,11 +140,32 @@ function Start-FrontendIfNeeded {
     Start-Process -FilePath "cmd.exe" `
         -ArgumentList "/k", "title P2P Frontend (Vite) && npm run dev" `
         -WorkingDirectory $FrontendDir | Out-Null
-    # A first cold start on a slow disk (or a OneDrive-synced folder) can take well over a minute.
+    if ($NoWait) { return }
     if (-not (Wait-ForPort -Port $FrontendPort -TimeoutSeconds 180 -Label "frontend")) {
         Write-Warn "Frontend se jos nije podigao. Pogledaj prozor 'P2P Frontend (Vite)'."
         Write-Host "   Ako je krenuo kasnije, samo osvezi stranicu u pretrazivacu (F5)."
     }
+}
+
+function Open-FrontendWhenReady([int]$PeerHttpPort) {
+    $url = "http://localhost:$FrontendPort/?port=$PeerHttpPort"
+    $command = @"
+`$deadline = (Get-Date).AddSeconds(180)
+while ((Get-Date) -lt `$deadline) {
+    `$client = New-Object System.Net.Sockets.TcpClient
+    try {
+        `$client.Connect('127.0.0.1', $FrontendPort)
+        Start-Process '$url'
+        exit
+    } catch {
+    } finally {
+        `$client.Close()
+    }
+    Start-Sleep -Milliseconds 500
+}
+"@
+    Start-Process -FilePath "powershell.exe" -WindowStyle Hidden `
+        -ArgumentList "-NoProfile", "-WindowStyle", "Hidden", "-Command", $command | Out-Null
 }
 
 function Open-Frontend([int]$PeerHttpPort) {
@@ -166,9 +174,6 @@ function Open-Frontend([int]$PeerHttpPort) {
     Start-Process $url | Out-Null
 }
 
-# ---------- Demo data ----------
-
-# The DoD asks for a >=10MB transfer; an empty shared folder is the #1 reason a demo shows nothing.
 function New-DemoFileIfEmpty([string]$SharedDir, [string]$FileName = "demo-10mb.bin", [int]$SizeMb = 10) {
     if (-not (Test-Path $SharedDir)) {
         New-Item -ItemType Directory -Path $SharedDir -Force | Out-Null

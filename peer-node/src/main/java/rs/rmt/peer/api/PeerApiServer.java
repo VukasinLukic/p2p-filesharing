@@ -7,6 +7,7 @@ import rs.rmt.peer.model.FileSearchResult;
 import rs.rmt.peer.model.PeerRef;
 import rs.rmt.peer.share.ChunkHasher;
 import rs.rmt.peer.share.LibraryService;
+import rs.rmt.peer.share.SharedFolderScanner;
 import rs.rmt.peer.state.PeerState;
 import rs.rmt.peer.tracker.TrackerClient;
 import rs.rmt.peer.tracker.TrackerSession;
@@ -17,7 +18,12 @@ import rs.rmt.peer.util.Json;
 import rs.rmt.peer.util.Router;
 
 import java.nio.file.Files;
+import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +31,7 @@ import java.util.Optional;
 
 /** Wires the local REST API (consumed exclusively by the React GUI on this same machine). */
 public final class PeerApiServer {
+    private static final long MAX_UPLOAD_BYTES = 512L * 1024 * 1024;
 
     public static Router build(PeerConfig config, PeerState state, LibraryService library,
                                 TrackerClient trackerClient, TrackerSession trackerSession,
@@ -105,7 +112,57 @@ public final class PeerApiServer {
         router.add("GET", "/api/library", (exchange, params) -> {
             List<Map<String, Object>> out = new ArrayList<>();
             for (FileMeta f : library.allFiles()) {
-                out.add(Json.obj("fileHash", f.fileHash(), "fileName", f.fileName(), "size", f.size()));
+                boolean isShared = library.resolve(f.fileHash())
+                        .map(path -> path.startsWith(config.sharedDir)).orElse(false);
+                out.add(Json.obj("fileHash", f.fileHash(), "fileName", f.fileName(), "size", f.size(),
+                        "shared", isShared));
+            }
+            HttpUtil.sendJson(exchange, 200, out);
+        });
+
+        router.add("POST", "/api/library/upload", (exchange, params) -> {
+            String encodedName = exchange.getRequestHeaders().getFirst("X-File-Name");
+            String fileName = safeFileName(encodedName);
+            if (fileName == null) {
+                HttpUtil.sendJson(exchange, 400, Json.obj("error", "A valid file name is required"));
+                return;
+            }
+            long contentLength = parseContentLength(exchange.getRequestHeaders().getFirst("Content-Length"));
+            if (contentLength > MAX_UPLOAD_BYTES) {
+                HttpUtil.sendJson(exchange, 413, Json.obj("error", "File is larger than 512 MB"));
+                return;
+            }
+
+            Files.createDirectories(config.sharedDir);
+            Path target = uniqueTarget(config.sharedDir, fileName);
+            Path temp = config.sharedDir.resolve(".upload-" + UUID.randomUUID() + ".part");
+            try {
+                long received = copyUpload(exchange, temp);
+                Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE);
+                String hash = SharedFolderScanner.sha256(target);
+                library.addFile(hash, config.sharedDir.relativize(target).toString().replace('\\', '/'), received, target);
+                boolean announced = trackerSession.registerAndAnnounce();
+                System.out.println("[Upload] added " + target.getFileName() + " (" + received
+                        + " bytes), announced=" + announced);
+                HttpUtil.sendJson(exchange, 201, Json.obj("fileHash", hash, "fileName", target.getFileName().toString(),
+                        "size", received, "announced", announced));
+            } catch (IOException e) {
+                Files.deleteIfExists(temp);
+                System.err.println("[Upload] failed for " + fileName + ": " + e.getMessage());
+                HttpUtil.sendJson(exchange, 500, Json.obj("error", "Could not save file: " + e.getMessage()));
+            }
+        });
+
+        router.add("GET", "/api/downloads/files", (exchange, params) -> {
+            List<Map<String, Object>> out = new ArrayList<>();
+            if (Files.exists(config.downloadDir)) {
+                try (var files = Files.walk(config.downloadDir)) {
+                    for (Path path : files.filter(Files::isRegularFile).toList()) {
+                        if (path.getFileName().toString().endsWith(".part")) continue;
+                        out.add(Json.obj("fileName", config.downloadDir.relativize(path).toString().replace('\\', '/'),
+                                "size", Files.size(path)));
+                    }
+                }
             }
             HttpUtil.sendJson(exchange, 200, out);
         });
@@ -148,5 +205,53 @@ public final class PeerApiServer {
                 "httpPort", config.httpPort,
                 "trackerUrl", config.trackerUrl,
                 "sharedDir", config.sharedDir.toString());
+    }
+
+    private static String safeFileName(String encodedName) {
+        if (encodedName == null || encodedName.isBlank()) return null;
+        try {
+            String decoded = URLDecoder.decode(encodedName, StandardCharsets.UTF_8);
+            Path name = Path.of(decoded).getFileName();
+            if (name == null) return null;
+            String value = name.toString().trim();
+            return value.isEmpty() || value.equals(".") || value.equals("..") ? null : value;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static long parseContentLength(String value) {
+        try {
+            return value == null ? -1 : Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    private static Path uniqueTarget(Path directory, String fileName) {
+        Path candidate = directory.resolve(fileName);
+        if (!Files.exists(candidate)) return candidate;
+        int dot = fileName.lastIndexOf('.');
+        String base = dot > 0 ? fileName.substring(0, dot) : fileName;
+        String extension = dot > 0 ? fileName.substring(dot) : "";
+        int number = 2;
+        do {
+            candidate = directory.resolve(base + " (" + number++ + ")" + extension);
+        } while (Files.exists(candidate));
+        return candidate;
+    }
+
+    private static long copyUpload(com.sun.net.httpserver.HttpExchange exchange, Path target) throws IOException {
+        long received = 0;
+        byte[] buffer = new byte[8192];
+        try (var input = exchange.getRequestBody(); var output = Files.newOutputStream(target)) {
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                received += read;
+                if (received > MAX_UPLOAD_BYTES) throw new IOException("File is larger than 512 MB");
+                output.write(buffer, 0, read);
+            }
+        }
+        return received;
     }
 }

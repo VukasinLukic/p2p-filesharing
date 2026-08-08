@@ -14,11 +14,7 @@ Invoke-JavaBuild $TrackerDir
 
 $ip = Get-LocalIPv4
 if ($ip) {
-    Write-Host ""
-    Write-Host "  Tvoja IP adresa u lokalnoj mrezi: $ip" -ForegroundColor Green
-    Write-Host "  Koleginica na drugom racunaru unosi bas ovu adresu" -ForegroundColor Green
-    Write-Host "  kada pokrene START-KOLEGINICA-LAN-PEER.bat." -ForegroundColor Green
-    # Handy when the tracker and a peer run on the same machine: the peer launcher reuses this.
+    Write-Host "  LAN IP: $ip" -ForegroundColor Green
     Set-LauncherSetting -Name "lastTrackerHostSelf" -Value $ip
 }
 

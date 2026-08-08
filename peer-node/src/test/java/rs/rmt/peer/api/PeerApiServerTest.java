@@ -21,6 +21,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -210,6 +211,30 @@ public class PeerApiServerTest {
         }
     }
 
+    public void testUploadAddsFileToSharedFolderAndAnnouncesIt() throws Exception {
+        Path tempDir = Files.createTempDirectory("peerapi-test");
+        try {
+            fakeTracker = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+            fakeTracker.createContext("/api/peers/register", exchange ->
+                    HttpUtil.sendJson(exchange, 200, Json.obj("peerId", "uploaded-peer", "host", "127.0.0.1")));
+            fakeTracker.createContext("/api/peers/uploaded-peer/files", exchange ->
+                    HttpUtil.sendJson(exchange, 200, Json.obj("status", "ok")));
+            fakeTracker.setExecutor(Executors.newCachedThreadPool());
+            fakeTracker.start();
+            startPeerApi(tempDir, "http://localhost:" + fakeTracker.getAddress().getPort(), new LibraryService(), null);
+
+            HttpResponse<String> upload = postRaw("/api/library/upload", "greeting.txt", "hello peer".getBytes(StandardCharsets.UTF_8));
+            Assert.assertEquals(201, upload.statusCode(), "upload must succeed");
+            Assert.assertEquals(true, Files.exists(tempDir.resolve("shared/greeting.txt")), "file must be written to shared folder");
+
+            List<Object> library = Json.parseArray(get("/api/library").body());
+            Assert.assertEquals(1, library.size(), "uploaded file must appear in library");
+        } finally {
+            stopAll();
+            deleteRecursively(tempDir);
+        }
+    }
+
     private void startPeerApi(Path tempDir, String trackerUrl, LibraryService library, String peerId) throws Exception {
         PeerConfig config = PeerConfig.fromArgs(new String[]{
                 "--shared-dir", tempDir.resolve("shared").toString(),
@@ -243,6 +268,14 @@ public class PeerApiServerTest {
         return client.send(HttpRequest.newBuilder().uri(URI.create(peerApiBase + path))
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postRaw(String path, String fileName, byte[] body) throws Exception {
+        return client.send(HttpRequest.newBuilder().uri(URI.create(peerApiBase + path))
+                        .header("Content-Type", "application/octet-stream")
+                        .header("X-File-Name", fileName)
+                        .POST(HttpRequest.BodyPublishers.ofByteArray(body)).build(),
                 HttpResponse.BodyHandlers.ofString());
     }
 

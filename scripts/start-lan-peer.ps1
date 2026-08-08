@@ -9,54 +9,24 @@ param(
 . (Join-Path $PSScriptRoot "common.ps1")
 
 Write-Host "=============================================="
-Write-Host "  P2P File Sharing - PEER $Label (LAN)"
+Write-Host "  P2P File Sharing - PEER $Label"
 Write-Host "=============================================="
-Write-Host ""
-Write-Host "Ovaj peer se povezuje na tracker koji radi na DRUGOM racunaru."
-Write-Host "Na tom racunaru mora biti pokrenut START-TRACKER.bat - on ispisuje"
-Write-Host "svoju IP adresu (npr. 192.168.0.15) koju ovde unosis."
-Write-Host ""
 
 $settings = Get-LauncherSettings
 $saved = $settings.trackerHost
-$prompt = if ([string]::IsNullOrWhiteSpace($saved)) {
-    "IP adresa racunara sa trackerom"
-} else {
-    "IP adresa racunara sa trackerom [Enter = $saved]"
-}
-
-$trackerHost = ""
-$attempts = 0
-while ([string]::IsNullOrWhiteSpace($trackerHost)) {
-    # Bail out instead of spinning forever if this ever runs without a console (Read-Host sees EOF).
-    if ($attempts -ge 5) {
-        Write-Warn "Nije uneta IP adresa - prekidam."
-        exit 1
-    }
-    $attempts++
-    $answer = Read-Host $prompt
-    if ([string]::IsNullOrWhiteSpace($answer)) { $answer = $saved }
-    if ([string]::IsNullOrWhiteSpace($answer)) {
-        Write-Warn "Moras uneti IP adresu (ili 'localhost' ako tracker radi na ovom racunaru)."
-        continue
-    }
-    $trackerHost = $answer.Trim()
+$prompt = if ([string]::IsNullOrWhiteSpace($saved)) { "Tracker IP" } else { "Tracker IP [$saved]" }
+$trackerHost = (Read-Host $prompt).Trim()
+if ([string]::IsNullOrWhiteSpace($trackerHost)) { $trackerHost = $saved }
+if ([string]::IsNullOrWhiteSpace($trackerHost)) {
+    Write-Host "Tracker IP is required." -ForegroundColor Red
+    exit 1
 }
 
 Set-LauncherSetting -Name "trackerHost" -Value $trackerHost
 $trackerUrl = "http://${trackerHost}:$TrackerPort"
-
-Write-Step "Proveravam da li je tracker dostupan na $trackerUrl"
-if (Test-PortListening -Port $TrackerPort -TargetHost $trackerHost -TimeoutMs 2000) {
-    Write-Host "   tracker odgovara" -ForegroundColor Green
-} else {
-    Write-Warn "Tracker se ne javlja na ${trackerHost}:$TrackerPort."
-    Write-Host "   Proveri: (1) da li je START-TRACKER.bat pokrenut na tom racunaru,"
-    Write-Host "            (2) da li su oba racunara na istoj mrezi,"
-    Write-Host "            (3) Windows Firewall -> dozvoli Java na privatnoj mrezi."
-    Write-Host "   Peer se svejedno pokrece i sam ce se povezati cim tracker postane dostupan."
-    Write-Host ""
-    Read-Host "Pritisni Enter da nastavis"
+Write-Host "Tracker: $trackerUrl"
+if (-not (Test-PortListening -Port $TrackerPort -TargetHost $trackerHost -TimeoutMs 2000)) {
+    Write-Host "Tracker is not reachable." -ForegroundColor Yellow
 }
 
 & (Join-Path $PSScriptRoot "start-peer.ps1") `

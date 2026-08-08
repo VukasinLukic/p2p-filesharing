@@ -13,12 +13,14 @@ const STATUS_LABEL = {
 export default function DownloadsTab() {
   const apiBase = usePeerApiBase()
   const { data: downloads } = usePolling(api.downloads, 500, [apiBase])
+  const { data: downloadedFiles } = usePolling(api.downloadedFiles, 2000, [apiBase])
   const list = downloads ?? []
+  const saved = downloadedFiles ?? []
 
   return (
     <section className="glass-panel">
       <h2 className="section-title">Preuzimanja</h2>
-      <p className="section-sub">Live status svih transfera u toku i završenih.</p>
+      <p className="section-sub">Status transfera i fajlovi sačuvani u downloads folderu.</p>
 
       {list.length === 0 ? (
         <div className="empty-state">Nema aktivnih preuzimanja.</div>
@@ -49,6 +51,22 @@ export default function DownloadsTab() {
           })}
         </div>
       )}
+
+      <div className="folder-section">
+        <h3 className="settings-label">Sačuvano u downloads folderu</h3>
+        {saved.length === 0 ? (
+          <p className="folder-empty">Folder je prazan.</p>
+        ) : (
+          <div className="file-list">
+            {saved.map((file) => (
+              <div className="file-row" key={file.fileName}>
+                <span className="file-name">{file.fileName}</span>
+                <span className="file-meta">{formatBytes(file.size)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   )
 }
