@@ -127,6 +127,37 @@ public class TrackerApiIntegrationTest {
         }
     }
 
+    public void testCloudflareConnectingIpHeaderOverridesLoopbackSource() throws Exception {
+        startServer();
+        try {
+            // Simulates the tracker running behind Cloudflare Tunnel: cloudflared always forwards to
+            // the tracker over loopback, but stamps the real visitor IP on this header - without it,
+            // every internet peer would be mistaken for one sharing a machine with the tracker.
+            HttpResponse<String> regResp = postWithHeader("/api/peers/register",
+                    Json.stringify(Json.obj("port", 9001)), "Cf-Connecting-Ip", "203.0.113.42");
+            Assert.assertEquals(200, regResp.statusCode(), "register should succeed");
+            Map<String, Object> regBody = Json.parseObject(regResp.body());
+            Assert.assertEquals("203.0.113.42", regBody.get("host"),
+                    "Cf-Connecting-Ip must win over the loopback socket address from cloudflared");
+        } finally {
+            stopServer();
+        }
+    }
+
+    public void testXForwardedForHeaderIsUsedWhenNoCloudflareHeaderPresent() throws Exception {
+        startServer();
+        try {
+            HttpResponse<String> regResp = postWithHeader("/api/peers/register",
+                    Json.stringify(Json.obj("port", 9001)), "X-Forwarded-For", "198.51.100.7, 10.0.0.1");
+            Assert.assertEquals(200, regResp.statusCode(), "register should succeed");
+            Map<String, Object> regBody = Json.parseObject(regResp.body());
+            Assert.assertEquals("198.51.100.7", regBody.get("host"),
+                    "the leftmost X-Forwarded-For entry is the original client, not intermediate proxies");
+        } finally {
+            stopServer();
+        }
+    }
+
     public void testUnknownRouteReturns404() throws Exception {
         startServer();
         try {
@@ -140,6 +171,14 @@ public class TrackerApiIntegrationTest {
     private HttpResponse<String> post(String path, String body) throws Exception {
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(baseUrl + path))
                 .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+        return client.send(req, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postWithHeader(String path, String body, String headerName, String headerValue) throws Exception {
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(baseUrl + path))
+                .header("Content-Type", "application/json")
+                .header(headerName, headerValue)
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build();
         return client.send(req, HttpResponse.BodyHandlers.ofString());
     }

@@ -4,6 +4,7 @@ $root = $PSScriptRoot
 $mainSrc = Join-Path $root "src\main\java"
 $testSrc = Join-Path $root "src\test\java"
 $out = Join-Path $root "out-test"
+$lib = Join-Path $root "lib"
 
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Path $out | Out-Null
@@ -14,12 +15,19 @@ $files += Get-ChildItem -Path $mainSrc -Recurse -Filter *.java | ForEach-Object 
 $files += Get-ChildItem -Path $testSrc -Recurse -Filter *.java | ForEach-Object { $_.FullName }
 [System.IO.File]::WriteAllLines($sources, $files, [System.Text.UTF8Encoding]::new($false))
 
+$classpath = if ((Test-Path $lib) -and (Get-ChildItem -Path $lib -Filter *.jar -ErrorAction SilentlyContinue)) { Join-Path $lib "*" } else { $null }
+
 Write-Host "Compiling peer-node (main + test)..."
-& (Get-JavacExe) -encoding UTF-8 -d $out "@$sources"
+if ($classpath) {
+    & (Get-JavacExe) -encoding UTF-8 -cp $classpath -d $out "@$sources"
+} else {
+    & (Get-JavacExe) -encoding UTF-8 -d $out "@$sources"
+}
 Remove-Item $sources
 
 Write-Host "Running tests..."
-& (Get-JavaExe) -cp $out rs.rmt.peer.AllTests
+$runCp = if ($classpath) { "$out;$classpath" } else { $out }
+& (Get-JavaExe) -cp $runCp rs.rmt.peer.AllTests
 $exitCode = $LASTEXITCODE
 
 if ($exitCode -ne 0) {

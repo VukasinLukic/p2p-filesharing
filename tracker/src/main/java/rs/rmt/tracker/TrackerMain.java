@@ -1,5 +1,6 @@
 package rs.rmt.tracker;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import rs.rmt.tracker.auth.AuthRoutes;
 import rs.rmt.tracker.model.FileMeta;
@@ -32,9 +33,11 @@ public final class TrackerMain {
     private static final long HEARTBEAT_TTL_MILLIS = 30_000;
 
     public static void main(String[] args) throws IOException {
-        TrackerRegistry registry = new TrackerRegistry();
-        Path usersFile = Paths.get(System.getProperty("tracker.data.dir", "./data")).resolve("users.json");
-        UserStore users = new UserStore(usersFile.toAbsolutePath().normalize());
+        Path dataDir = Paths.get(System.getProperty("tracker.data.dir", "./data"));
+        Path peersFile = dataDir.resolve("peers.json").toAbsolutePath().normalize();
+        Path usersFile = dataDir.resolve("users.json").toAbsolutePath().normalize();
+        TrackerRegistry registry = new TrackerRegistry(peersFile);
+        UserStore users = new UserStore(usersFile);
         SessionStore sessions = new SessionStore();
         Router router = buildRouter(registry, users, sessions);
 
@@ -47,7 +50,8 @@ public final class TrackerMain {
         System.out.println("=== P2P Tracker ===");
         System.out.println("Listening on http://0.0.0.0:" + PORT);
         System.out.println("Debug view:   http://localhost:" + PORT + "/api/peers");
-        System.out.println("User store:   " + usersFile.toAbsolutePath().normalize() + " (" + users.size() + " account(s))");
+        System.out.println("Peer store:   " + peersFile);
+        System.out.println("User store:   " + usersFile + " (" + users.size() + " account(s))");
 
         ScheduledExecutorService evictor = Executors.newSingleThreadScheduledExecutor();
         evictor.scheduleAtFixedRate(() -> {
@@ -98,6 +102,34 @@ public final class TrackerMain {
                 || host.equalsIgnoreCase("localhost");
     }
 
+    /**
+     * The address a registering peer actually connected from - preferring what a trusted reverse
+     * proxy in front of the tracker says over the raw socket address.
+     *
+     * Needed to run the tracker behind Cloudflare Tunnel (or any other reverse proxy): cloudflared
+     * forwards every request to the tracker over loopback, so without this every internet peer would
+     * look like it shares a machine with the tracker and chooseHost() would fall back to whatever LAN
+     * address the peer self-reports - useless to a peer on a different network. Cloudflare always sets
+     * Cf-Connecting-Ip to the real visitor IP on proxied traffic, so that takes priority when present;
+     * X-Forwarded-For is the more generic fallback for other reverse proxies. Trusting these headers
+     * only matters when something in front of the tracker actually sets them - a peer that talks to the
+     * tracker directly could forge them, but that peer could already lie just as easily via the
+     * self-reported "host" field chooseHost() falls back to, so this doesn't weaken the existing trust
+     * model.
+     */
+    private static String resolveRemoteHost(HttpExchange exchange) {
+        String cfConnectingIp = exchange.getRequestHeaders().getFirst("Cf-Connecting-Ip");
+        if (cfConnectingIp != null && !cfConnectingIp.isBlank()) return cfConnectingIp.trim();
+
+        String forwardedFor = exchange.getRequestHeaders().getFirst("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            // Leftmost entry is the original client; anything after is proxies in the chain.
+            return forwardedFor.split(",")[0].trim();
+        }
+
+        return exchange.getRemoteAddress().getAddress().getHostAddress();
+    }
+
     /** Peer/file endpoints only - accounts are optional, so this overload keeps them out. */
     public static Router buildRouter(TrackerRegistry registry) {
         return buildRouter(registry, null, null);
@@ -123,8 +155,7 @@ public final class TrackerMain {
                 return;
             }
             String requestedId = Json.getString(body, "peerId");
-            String host = chooseHost(exchange.getRemoteAddress().getAddress().getHostAddress(),
-                    Json.getString(body, "host"));
+            String host = chooseHost(resolveRemoteHost(exchange), Json.getString(body, "host"));
 
             PeerInfo info = registry.register(requestedId, host, port);
             System.out.println("[REGISTER] peerId=" + info.peerId() + " host=" + info.host() + " port=" + info.port());

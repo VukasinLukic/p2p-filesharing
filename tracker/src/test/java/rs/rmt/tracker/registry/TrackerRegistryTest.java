@@ -6,6 +6,9 @@ import rs.rmt.tracker.model.PeerInfo;
 import rs.rmt.tracker.model.PeerRef;
 import rs.rmt.tracker.testutil.Assert;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 
 public class TrackerRegistryTest {
@@ -102,5 +105,51 @@ public class TrackerRegistryTest {
         boolean freshKept = registry.allPeersSummary().stream().anyMatch(s -> s.peerId().equals(fresh.peerId()));
         Assert.assertTrue(staleGone, "stale peer removed");
         Assert.assertTrue(freshKept, "fresh peer retained");
+    }
+
+    public void testPeersAndFilesSurviveAReload() throws Exception {
+        Path dir = Files.createTempDirectory("peers-test");
+        try {
+            Path file = dir.resolve("nested").resolve("peers.json");
+
+            TrackerRegistry first = new TrackerRegistry(file);
+            PeerInfo p = first.register("fixed-id", "203.0.113.5", 9001);
+            first.announceFiles(p.peerId(), List.of(new FileMeta("h1", "movie.mp4", 500)));
+            Assert.assertTrue(Files.exists(file), "registry creates its parent directory and file");
+
+            TrackerRegistry reloaded = new TrackerRegistry(file);
+            List<PeerRef> forFile = reloaded.peersForFile("h1");
+            Assert.assertEquals(1, forFile.size(), "peer is read back from disk");
+            Assert.assertEquals("fixed-id", forFile.get(0).peerId(), "peerId survives reload");
+            Assert.assertEquals("203.0.113.5", forFile.get(0).host(), "host survives reload");
+            Assert.assertEquals(9001, forFile.get(0).port(), "port survives reload");
+        } finally {
+            deleteRecursively(dir);
+        }
+    }
+
+    public void testCorruptRegistryFailsLoudlyInsteadOfWipingPeers() throws Exception {
+        Path dir = Files.createTempDirectory("peers-test");
+        try {
+            Path file = dir.resolve("peers.json");
+            Files.writeString(file, "{ ovo nije validan JSON");
+            try {
+                new TrackerRegistry(file);
+                Assert.fail("a corrupt peers file must not silently start with an empty registry");
+            } catch (IllegalStateException expected) {
+                Assert.assertTrue(expected.getMessage().contains("peers.json"), "error names the bad file");
+            }
+        } finally {
+            deleteRecursively(dir);
+        }
+    }
+
+    private static void deleteRecursively(Path dir) throws Exception {
+        if (!Files.exists(dir)) return;
+        try (var walk = Files.walk(dir)) {
+            for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(p);
+            }
+        }
     }
 }

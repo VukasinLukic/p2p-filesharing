@@ -3,6 +3,7 @@ package rs.rmt.peer;
 import com.sun.net.httpserver.HttpServer;
 import rs.rmt.peer.api.PeerApiServer;
 import rs.rmt.peer.config.PeerConfig;
+import rs.rmt.peer.net.UpnpPortMapper;
 import rs.rmt.peer.share.LibraryService;
 import rs.rmt.peer.share.SharedFolderScanner;
 import rs.rmt.peer.state.PeerState;
@@ -46,6 +47,11 @@ public final class PeerMain {
         Thread fileServerThread = new Thread(fileServer, "file-server");
         fileServerThread.setDaemon(true);
         fileServerThread.start();
+
+        // Best-effort: opens this peer's TCP port on its own router so peers on other networks can
+        // reach it. Safe to skip - a router without UPnP just means this peer stays LAN-only unless
+        // the port is forwarded by hand (see README).
+        UpnpPortMapper.tryMapPort(config.tcpPort);
 
         TrackerClient trackerClient = new TrackerClient(config.trackerUrl);
         TrackerSession trackerSession = new TrackerSession(config, state, trackerClient, library);
