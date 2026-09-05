@@ -11,7 +11,7 @@ Korak	Ko	Šta radi
 3	Ti	Taj link pošalji Teodori na chat (Viber/WhatsApp/Discord — gde god ste vezi tokom poziva).
 4	Ti	Ubaci fajl koji deliš u folder peer-node\shared-a\ pre sledećeg koraka (ili posle, pa ga dodaš kroz Biblioteka → Upload u frontendu).
 5	Ti	Duplo klik START-PEER1.bat. Otvoriće se i frontend u browseru.
-6	Teodora	Duplo klik START-PEER2.bat. Kad zatraži "Tracker IP" — unosi tvoj link iz koraka 2 (ceo, sa https://, bez :8080 na kraju).
+6	Teodora	Duplo klik START-PEER2.bat. Kad zatraži "Tracker adresa" — unosi tvoj link iz koraka 2 (ceo, sa https://, bez :8080 na kraju — skripta sad prepoznaje pun link i koristi ga tacno onako kako je unet).
 7	Teodora	U frontendu koji joj se otvori: kartica Pretraga, ukuca ime fajla, klikne Preuzmi.
 8	Teodora	Kartica Preuzimanja — vidi da je fajl stigao 100%.
 Šta ostaje upaljeno ceo poziv: kod tebe — tracker prozor, cloudflared prozor, peer1 prozor; kod Teodore — peer2 prozor.
